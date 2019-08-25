@@ -31,16 +31,24 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
   public String questionName                {get; set;}  
   public String questionType                {get; set;}
   public Boolean questionRequired           {get; set;}
-  public List<question> allQuestions        {get; set;}
+  public List<SFQuestion> allQuestions        {get; set;}
   public List<String> responses             {get; set;}
   public Integer allQuestionsSize           {get; set;}
   public String  templateURL                {get; set;}
   public String  surveyThankYouText         {get; set;}
   public String  surveyThankYouURL          {get; set;}
   public String  caseId                     {get; set;}
-    public List<String> newOrder {get;set;}
-    public String newOrderW {get;set;}
-  
+  public List<String> newOrder {get;set;}
+  public String newOrderW {get;set;}
+  public Message pageMessage {
+      get{
+          if(pageMessage == null){
+              pageMessage = new Message();
+          }
+          return pageMessage;
+      }
+      set;
+  }
    
   public  SurveyAndQuestionController (ApexPages.StandardController stdController){
      /**/
@@ -56,61 +64,19 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
 
     if (surveyId != null){ 
       // Retrieve all necessary information to be displayed on the page
-      allQuestions = new List<question>();
+      allQuestions = new List<SFQuestion>();
       setSurveyNameAndThankYou(surveyId);
     }
     /**/
     surveyRef = surveyId;
     setupQuestionTypeOptions();
     resetViewsToFalse(true);
-    showSelectQuestionType = 'False';
+    showSelectQuestionType = 'True';
     ReportFinderUtil rfu = new ReportFinderUtil();
     reportId = rfu.findReportId('Survey with Questions and Responses');
    
   }
-  
-  //test constructor and calls within it
-  private static TestMethod void testCreateQuestionController(){
-    SurveyTestingUtil tu = new SurveyTestingUtil();
-    Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-    Apexpages.Standardcontroller std;
-    SurveyAndQuestionController cqc = new SurveyAndQuestionController(std);
-    cqc.addQuestion();
-    cqc.getNewQuestionNum();
-    cqc.makeNewQuestionLink();
-    System.assert(cqc.surveyId == tu.surveyId);
-  }
-  
-  
-  //if you are using a developement org you will need to manually add your Pod.
-  /* legacy
-  public Pagereference updateUrl(){
-    Survey__c survey = [select Name, Id, URL__c from Survey__c where id = :surveyId];  
-    Site subSite = [select Subdomain, id from Site limit 1];
-    if(survey.URL__c.contains(subSite.Subdomain))
-      return null;
-    else
-      return updateDomain(survey, subSite);
-  }
-  */
-  /*
-  legacy
-  private Pagereference updateDomain(Survey__c survey, Site subSite){
-    String surveyUrl = survey.URL__c;
-    String subdomainReplace = 'http://'+subSite.Subdomain;
-    //surveyUrl = surveyUrl.replaceFirst('*.', subdomainReplace);
-    surveyUrl = surveyUrl.substring(surveyUrl.indexOf('.'), surveyUrl.length());
-    surveyUrl = subdomainReplace + surveyUrl;
-    try{
-        survey.URL__c = surveyUrl;
-        update survey;
-    }catch(Exception e){
-        system.debug(e);
-    }
-    setSurveyNameAndThankYou(surveyId);
-    return null;
-  }
-  */
+
   
   public Pagereference makeNewQuestionLink(){
     questionReference = null;
@@ -122,7 +88,8 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     if (questionReference == null)
      return null;
     setupEditQuestion();
-    showSelectQuestionType = 'True';
+    //Disable question type drop down as it's an older question
+    showSelectQuestionType = 'False';
     return null;
   }
   
@@ -163,23 +130,7 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     }
   }
  
-  //test constructor and calls within it
-  private static TestMethod void testEditQuestion(){
-    SurveyTestingUtil tu = new SurveyTestingUtil();
-    Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-    Apexpages.Standardcontroller std;
-    SurveyAndQuestionController cqc = new SurveyAndQuestionController(std);
-    cqc.editQuestion();
-    cqc.questionReference = tu.questionIds[0];
-    cqc.editQuestion();
-    cqc.questionReference = tu.questionIds[1];
-    cqc.editQuestion();
-    cqc.questionReference = tu.questionIds[2];
-    cqc.editQuestion();
-    cqc.questionReference = tu.questionIds[3];
-    System.assert(cqc.editQuestion()==null);
-    
-  }
+
   
   
   private void resetViewsToFalse(Boolean clearFields){
@@ -199,14 +150,15 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     }
 
   public Pagereference setupQuestionFields(){
-    resetViewsToFalse(false);
+    resetViewsToFalse(true);
+    showSelectQuestionType = 'True';
     if(questionType=='Multi-Select--Vertical'){
      showMultiSelect='True';
     }
     else if(questionType == 'Single Select--Vertical'){
       showSingleSelect = 'True';
     }
-    else if(questionType == 'Free Text'){
+    else if(questionType == 'Free Text' || questionType == 'Free Text - Single Row Visible'){
       showFreeText = 'True';
     }
     else if(questionType == 'Single Select--Horizontal'){
@@ -224,30 +176,7 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
   }
   
   
-  //test the saving of new questions
-  private static TestMethod void testsaveAndNewQuestion(){
-    SurveyTestingUtil tu = new SurveyTestingUtil();
-    Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-    Apexpages.Standardcontroller std;
-    SurveyAndQuestionController cqc = new SurveyAndQuestionController(std);
-    //test saving new question
-    cqc.qQuestion = 'THIS IS A NEW QUESTION';
-    cqc.qChoices = '1\\n2\\n3\\3';
-    cqc.qRequired=true;
-    cqc.questionType='Single Select--Vertical';
-    cqc.saveAndNewQuestion();
-    System.assertEquals(5, cqc.getNewQuestionNum());
-    //edit existing question
-    SurveyAndQuestionController cqcI = new SurveyAndQuestionController(std);
-    cqcI.questionReference = tu.questionIds[0];
-    cqcI.editQuestion();
-    cqcI.qQuestion = 'THIS IS A NEW QUESTION THAT IS EXTRA LONG SO THE NAME SHORTENING CALL WILL BE USED, THIS SHOULD BE LONG ENOUGH NOW THIS IS A NEW';
-    cqcI.qChoices = '1\\n2\\n3\\3';
-    cqcI.qRequired=true;
-    cqcI.questionType='Single Select--Vertical';
-    cqcI.saveAndNewQuestion();
-    System.assertEquals(5, cqcI.getNewQuestionNum());
-  }
+
   
   public Pagereference controllerSavQuestion(){
     if(questionReference == null || questionReference.length() <5){
@@ -258,32 +187,8 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     }
   }
   
- 
-  
-  private static TestMethod void testsavesaveQuestion(){
-    SurveyTestingUtil tu = new SurveyTestingUtil();
-    Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-    Apexpages.Standardcontroller std;
-    SurveyAndQuestionController cqc = new SurveyAndQuestionController(std);
-    //test saving new question
-    cqc.qQuestion = 'THIS IS A NEW QUESTION';
-    cqc.qChoices = '1\\n2\\n3\\3';
-    cqc.qRequired=true;
-    cqc.questionType='Single Select--Vertical';
-    cqc.controllerSavQuestion();
-    System.assertEquals(5, cqc.getNewQuestionNum());
-    //edit existing question
-    SurveyAndQuestionController cqcI = new SurveyAndQuestionController(std);
-    cqcI.questionReference = tu.questionIds[0];
-    cqcI.editQuestion();
-    cqcI.qQuestion = 'THIS IS A NEW QUESTION THAT IS EXTRA LONG SO THE NAME SHORTENING CALL WILL BE USED, THIS SHOULD BE LONG ENOUGH NOW';
-    cqcI.qChoices = '1\\n2\\n3\\3';
-    cqcI.qRequired=true;
-    cqcI.questionType='Single Select--Vertical';
-    cqcI.controllerSavQuestion();
-    System.assertEquals(5, cqcI.getNewQuestionNum());
-  }
-  
+
+
   
   private Pagereference updateQuestion(){
     //questionToUpdate is setup in an earlier call to editQuestion()
@@ -297,9 +202,10 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
       resetViewsToFalse(true);
       deleteOldResponses(questionToUpdate.id);
       questionReference = null;
+        pageMessage.setMessage('Question was updated!', 'success');
     }catch(Exception e){
-      System.debug(e);
       Apexpages.addMessages(e);
+      pageMessage.setMessage(e.getMessage(), 'error');
     }
     
     return saveOrUpdateReturn();
@@ -326,7 +232,7 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     }
   }
 
-  private Integer getNewQuestionNum(){
+  public Integer getNewQuestionNum(){
     if(allQuestions == null)
      return 0;
     else{
@@ -345,9 +251,10 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     newQuestion.Question__c = qQuestion;
     resetViewsToFalse(true);
     try{
-      insert newQuestion;
+        insert newQuestion;
+        pageMessage.setMessage('New question was added!', 'success');
     }catch(Exception e){
-      System.debug(e);
+        pageMessage.setMessage(e.getMessage(), 'error');
     }
     return saveOrUpdateReturn();
   }
@@ -368,7 +275,7 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
      showSingleSelectPreview = 'True';
      singleOptions = stringToSelectOptions(qChoices);
     }
-    else if(questionType =='Free Text'){
+    else if(questionType =='Free Text' || questionType == 'Free Text - Single Row Visible'){
       showFreeTextPreview = 'True';
     }
     else if(questionType == 'Single Select--Horizontal'){
@@ -379,30 +286,6 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
   }
 
 
-   //test constructor and calls within it
-  private static TestMethod void testPreviewQuestion(){
-    SurveyTestingUtil tu = new SurveyTestingUtil();
-    Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-    Apexpages.Standardcontroller std;
-    SurveyAndQuestionController cqc = new SurveyAndQuestionController(std);
-    
-    cqc.questionReference = tu.questionIds[0];
-    cqc.editQuestion();
-    cqc.previewQuestion();
-
-    cqc.questionReference = tu.questionIds[1];
-    cqc.editQuestion();
-    cqc.previewQuestion();
-    
-    cqc.questionReference = tu.questionIds[2];
-    cqc.editQuestion();
-    System.assert(cqc.previewQuestion()==null);
-    
-    cqc.questionReference = tu.questionIds[3];
-    cqc.editQuestion();
-    System.assert(cqc.previewQuestion()==null);
-    
-  }
 
   
   private List<SelectOption> stringToSelectOptions(String str){
@@ -456,19 +339,11 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
       update s;
     }catch (Exception e){
       Apexpages.addMessages(e);
+      pageMessage.setMessage(e.getMessage(), 'error');
     }
     return null;
   } 
-  
-  private static Testmethod void testUpdateSurveyName() {
-      SurveyTestingUtil tu = new SurveyTestingUtil();
-      Apexpages.currentPage().getParameters().put('id',tu.surveyId);  
-      Apexpages.Standardcontroller stc; 
-      SurveyAndQuestionController vsc = new SurveyAndQuestionController(stc);
-      vsc.surveyName = 'new name';
-      system.assert(vsc.updateSurveyName() == null);
-      
-  }
+
 //------------------------------------------------------------------------------//    
   public Pagereference updateSurveyThankYouAndLink(){
     Survey__c s = [SELECT Name, Id, URL__c, thankYouText__c, thankYouLink__c FROM Survey__c WHERE Id =:surveyId];
@@ -478,19 +353,12 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
       update s;
     }catch(Exception e){
       Apexpages.addMessages(e);
+
+        pageMessage.setMessage(e.getMessage(), 'error');
     }
     return null;
   }
-  
-  private static Testmethod void testupdateSurveyThankYouAndLink() {
-    SurveyTestingUtil tu = new SurveyTestingUtil();
-    Apexpages.currentPage().getParameters().put('id',tu.surveyId);  
-    Apexpages.Standardcontroller stc; 
-    SurveyAndQuestionController vsc = new SurveyAndQuestionController(stc);
-    vsc.surveyThankYouText = 'new stuff';
-    vsc.surveyThankYouURL = 'more new stff';
-    system.assert(vsc.updateSurveyThankYouAndLink()==null);
-  }
+
   
    public PageReference updateOrderList()
   {
@@ -498,23 +366,29 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     {
         return null;
     }
-    
-    newOrderW = newOrderW.substring(0, newOrderW.length() -1);
-    
-    List<String> idsToUpdate = newOrderW.split(',',-1);
-    List<Survey_Question__c> qsToUpdate = new List<Survey_Question__c>();
-    
-    Map<Id,Survey_Question__c> questionMap = new Map<Id,Survey_Question__c>([select Id, OrderNumber__c from Survey_Question__c where Id in :idsToUpdate]);
-    Survey_Question__c sqToUpdate;
-    
-    for (Integer i = 0; i < idsToUpdate.size(); i++)
-    {
-        sqToUpdate = questionMap.get(idsToUpdate.get(i));
-        sqToUpdate.OrderNumber__c = i;
-        qsToUpdate.add(sqToUpdate);
-    }
-    
-    update qsToUpdate;
+
+      try {
+          newOrderW = newOrderW.substring(0, newOrderW.length() - 1);
+
+          List<String> idsToUpdate = newOrderW.split(',', -1);
+          List<Survey_Question__c> qsToUpdate = new List<Survey_Question__c>();
+
+          Map<Id, Survey_Question__c> questionMap = new Map<Id, Survey_Question__c>([select Id, OrderNumber__c from Survey_Question__c where Id in :idsToUpdate]);
+          Survey_Question__c sqToUpdate;
+
+          for (Integer i = 0; i < idsToUpdate.size(); i++) {
+              sqToUpdate = questionMap.get(idsToUpdate.get(i));
+              sqToUpdate.OrderNumber__c = i;
+              qsToUpdate.add(sqToUpdate);
+          }
+
+          update qsToUpdate;
+          pageMessage.setMessage('Question Order was successfully updated!', 'success');
+      }catch(Exception e){
+          Apexpages.addMessages(e);
+          pageMessage.setMessage(e.getMessage(), 'error');
+
+      }
     
     return null;
   } 
@@ -528,39 +402,7 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     return null;
    }
 
-//------------------------------------------------------------------------------//  
-  private static Testmethod void testRefreshQuestionList() {
-      SurveyTestingUtil tu = new SurveyTestingUtil();
-      Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-      Apexpages.Standardcontroller stc; 
-      SurveyAndQuestionController vsc = new SurveyAndQuestionController(stc);
-      vsc.getAQuestion();
-      
-      // Retrieve questions for this survey
-      List<Survey_Question__c> sq = new List<Survey_Question__c>();
-      sq = [Select id, orderNumber__c from Survey_Question__c];
-      
-      // get question with orderNumber 1
-      Survey_Question__c first = [Select id, orderNumber__c from Survey_Question__c Where orderNumber__c =: 1 and Survey__c =: tu.surveyId];
-      System.assert(first.orderNumber__c == 1 );    
-     
-      // Specify the new order
-      vsc.newOrderW = vsc.allQuestions[2].id + ',' +
-      vsc.allQuestions[0].id + ',' +
-      vsc.allQuestions[1].id + ',' +
-      vsc.allQuestions[3].id + ',';
-      
-      vsc.updateOrderList();
-            
-      // Verify that the question with order 1 is not the same as the one retrieved previously
-      Survey_Question__c second = [Select id, orderNumber__c from Survey_Question__c Where orderNumber__c =: 1 and Survey__c =: tu.surveyId];
-      System.assert(second.id != first.id);
-      
-      // update the question list, and make sure it has been modified as well
-      vsc.refreshQuestionList();
-    System.assert(vsc.allQuestions[1].id != first.id);
-      
-  }
+
 //------------------------------------------------------------------------------//    
 
 
@@ -578,55 +420,39 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     
   
 //------------------------------------------------------------------------------//      
-  public Pagereference deleteRefresh(){
-    if (questionReference!= null )
-    {
-         Survey_Question__c sq = [Select Id, Name FROM Survey_Question__c WHERE Id =: questionReference];
-         delete sq;  
-         questionReference = null;  
-    }
-     allQuestions.clear();
-     Double j = 0.0;
-    List<Survey_Question__c> allQuestionsObject = 
-                    [Select Type__c, Id, Survey__c, Required__c, 
-                    Question__c, OrderNumber__c, Name, Choices__c
-                    From Survey_Question__c  
-                    WHERE Survey__c =: surveyId
-                    order by OrderNumber__c];
-    for (Integer i =0; i< allQuestionsObject.size(); i++){
-      allQuestionsObject[i].OrderNumber__c= j;
-      question theQ = new question(allQuestionsObject[i]);
-      allQuestions.add(theQ);
-      j = j+1.0;
-    }
-    responses = getResponses();
-    try{
-      update allQuestionsObject;
+    public Pagereference deleteRefresh(){
+        if (questionReference == null ){
+            return null;
+        }
+      try{
+        Survey_Question__c sq = [Select Id, Name FROM Survey_Question__c WHERE Id =: questionReference];
+        delete sq;
+         questionReference = null;
+
+         allQuestions.clear();
+         Double j = 0.0;
+        List<Survey_Question__c> allQuestionsObject =
+                        [Select Type__c, Id, Survey__c, Required__c,
+                        Question__c, OrderNumber__c, Name, Choices__c
+                        From Survey_Question__c
+                        WHERE Survey__c =: surveyId
+                        order by OrderNumber__c];
+        for (Integer i =0; i< allQuestionsObject.size(); i++){
+          allQuestionsObject[i].OrderNumber__c= j;
+            SFQuestion theQ = new SFQuestion(allQuestionsObject[i]);
+          allQuestions.add(theQ);
+          j = j+1.0;
+        }
+        responses = getResponses();
+        update allQuestionsObject;
     }catch(Exception e){
       Apexpages.addMessages(e);
+      pageMessage.setMessage(e.getMessage(), 'error');
     }
       return saveOrUpdateReturn();
   }
 
-//------------------------------------------------------------------------------//    
-  private static TestMethod void testDeleteQuestion() {
-      SurveyTestingUtil tu = new SurveyTestingUtil();
-      Apexpages.currentPage().getParameters().put('id',tu.surveyId);
-      Apexpages.Standardcontroller stc; 
-      SurveyAndQuestionController vsc = new SurveyAndQuestionController(stc);
-      
-      
-      // Get a question to delete
-      Survey_Question__c sq = [Select id, orderNumber__c from Survey_Question__c Where orderNumber__c =: 1 and Survey__c =: tu.surveyId];
-      vsc.questionReference = sq.Id;
-      vsc.deleteRefresh();
-      
-      Survey_Question__c sq2 = [Select id, orderNumber__c from Survey_Question__c Where orderNumber__c =: 1 and Survey__c =: tu.surveyId];
-      System.assert(sq.Id != sq2.Id);
 
-      
-  }
-//------------------------------------------------------------------------------//  
 
 //------------------------------------------------------------------------------//  
 
@@ -642,111 +468,17 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
     return resp;
   }  
 
-   /** Class: question
-    *  Retrieves the question information and puts it in the question object
-    */    
-  public class question{
-      public String   name                   {get; set;}
-      public String   id                     {get; set;}
-      public String   question               {get; set;}
-      public String   orderNumber            {get; set;}
-      public String   choices                {get; set;}
-      public List<SelectOption> singleOptions{get; set;}
-      public List<SelectOption> multiOptions {get; set;}
-      public Boolean  required               {get; set;}
-      public String   questionType           {get; set;}  
-      public String   surveyName             {get; set;}
-      public String   renderFreeText         {get; set;}
-      public String   renderSelectRadio      {get; set;}
-      public String   renderSelectCheckboxes {get; set;} 
-      public String   renderSelectRow        {get; set;}
-      public List<String> responses          {get; set;}
-      public String   singleOptionsForChart  {get; set;}
-      public String   qResultsForChart       {get; set;} 
-      public List<String> strList            {get; set;} // The question's option as a list of string
-      public List<Integer> resultsCounts     {get; set;} // The count of each response to a question's choices
-      public List<SelectOption> rowOptions   {get; set;}
-      public boolean  noData                 {get; set;}
-      
-    /** Fills up the question object
-     *  param:  Survey_Question__c 
-       */     
-     public question(Survey_Question__c sq) {
-        name = sq.Name;
-        id = sq.Id;
-        System.debug('in Question found one with id '+id);
-        question = sq.Question__c;
-        orderNumber = String.valueOf(sq.OrderNumber__c+1);
-        choices = sq.Choices__c;
-        required = sq.Required__c;
-        questionType = sq.Type__c;
-        singleOptionsForChart = ' ';
-     if (sq.Type__c=='Single Select--Vertical'){
-        renderSelectRadio='true';
-        singleOptions = stringToSelectOptions(choices);
-        renderSelectCheckboxes='false';
-        renderFreeText='false';
-        renderSelectRow = 'false';
-      }
-     else if (sq.Type__c=='Multi-Select--Vertical'){    
-        renderSelectCheckboxes='true';
-        multiOptions = stringToSelectOptions(choices);
-        renderSelectRadio='false';
-        renderFreeText='false';
-        renderSelectRow = 'false';
-      }
-     else if (sq.Type__c=='Single Select--Horizontal'){   
-        renderSelectCheckboxes='false';
-        rowOptions = stringToSelectOptions(choices);
-        renderSelectRadio='false';
-        renderFreeText='false';
-        renderSelectRow = 'true';
-      }
-     else if (sq.Type__c=='Free Text'){
-        renderFreeText='true';
-        renderSelectRadio='false';
-        renderSelectCheckboxes='false';
-        renderSelectRow = 'false';
-      }
-        //responses= getResponses();
-      }
-      
-     /** Splits up the string as given by the user and adds each option
-      *  to a list to be displayed as option on the Visualforce page
-      *  param: str String as submitted by the user
-      *  returns the List of SelectOption for the visualforce page
-        */  
-      private List<SelectOption> stringToSelectOptions(String str){
-      if (str == '')
-      {
-        return new List<SelectOption>();
-      }
-      strList = str.split('\n');
-    
-      List<SelectOption> returnVal = new List<SelectOption>();
-      for(String s: strList){
-        if (s!='') {
-          returnVal.add(new SelectOption(s,s));
-          if (s != 'null' && s!= null) {
-            String sBis = s.replace(' ', '%20');
-            singleOptionsForChart += s.trim()+'|';
-          }
-        }
-      }
-      singleOptionsForChart = singleOptionsForChart.substring(0, singleOptionsForChart.length()-1);
-      return returnVal;
-    } 
-  }
+   
   
   /** Fills up the List of questions to be displayed on the Visualforce page
    */ 
-  public List<question> getAQuestion() {
+  public List<SFQuestion> getAQuestion() {
     List<Survey_Question__c> allQuestionsObject = 
                     [Select s.Type__c, s.Id, s.Survey__c, s.Required__c, s.Question__c, 
                     s.OrderNumber__c, s.Name, s.Choices__c 
                     From Survey_Question__c s 
                     WHERE s.Survey__c =: surveyId ORDER BY s.OrderNumber__c];
-    allQuestions = new List<question>();
+    allQuestions = new List<SFQuestion>();
     
     Double old_OrderNumber = 0;
     Double new_OrderNumber;
@@ -761,7 +493,7 @@ global virtual with sharing class SurveyAndQuestionController{// extends SurveyA
         q.OrderNumber__c -= Integer.valueOf(newOrderInt); 
       }
       old_OrderNumber = q.OrderNumber__c;
-      question theQ = new question(q);
+        SFQuestion theQ = new SFQuestion(q);
       allQuestions.add(theQ);
     }
     allQuestionsSize = allQuestions.size();
